@@ -1013,8 +1013,8 @@
           const hasDns = urls.some(url => url.includes("dns-shop.ru"));
           const hasRegard = urls.some(url => url.includes("www.regard.ru"));
           if (hasDns) sourceResults.push(parseHarPayload(data, file.name));
-          else if (hasRegard) sourceResults.push(parseRegardHarPayload(data, file.name));
-          else throw new Error(`Не удалось определить магазин для файла ${file.name}.`);
+          if (hasRegard) sourceResults.push(parseRegardHarPayload(data, file.name));
+          if (!hasDns && !hasRegard) throw new Error(`Не удалось определить магазин для файла ${file.name}.`);
         }
         else if (Array.isArray(data?.pages)) sourceResults.push(parseCollectorPayload(data, file.name));
         else throw new Error(`Файл ${file.name} не похож ни на HAR, ни на live-export JSON.`);
@@ -1028,8 +1028,8 @@
           const hasDns = urls.some(url => url.includes("dns-shop.ru"));
           const hasRegard = urls.some(url => url.includes("www.regard.ru"));
           if (hasDns) sourceResults.push(parseHarPayload(data, "pasted-dns-har"));
-          else if (hasRegard) sourceResults.push(parseRegardHarPayload(data, "pasted-regard-har"));
-          else throw new Error("Не удалось определить магазин во вставленном HAR.");
+          if (hasRegard) sourceResults.push(parseRegardHarPayload(data, "pasted-regard-har"));
+          if (!hasDns && !hasRegard) throw new Error("Не удалось определить магазин во вставленном HAR.");
         }
         else if (Array.isArray(data?.pages)) sourceResults.push(parseCollectorPayload(data, "pasted-live-export"));
         else throw new Error("Вставленный JSON не похож ни на HAR, ни на live-export JSON.");
