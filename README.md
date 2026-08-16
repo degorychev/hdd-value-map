@@ -1,65 +1,72 @@
 # HDD + ZFS Analyzer
 
-Статическая публикационная сборка инструмента для сравнения HDD под ZFS.
+Статический инструмент для сравнения HDD по выгрузкам DNS и Regard с пересчётом цены в ZFS-конфигурации.
 
-## Что внутри
+Публичная страница:
+[https://degorychev.github.io/hdd-value-map/](https://degorychev.github.io/hdd-value-map/)
+
+## Что умеет
+
+- загружает один или несколько `HAR` или `JSON`-файлов
+- объединяет данные из DNS и Regard
+- считает стоимость массива для `stripe`, `mirror`, `raidz1`, `raidz2`, `raidz3`
+- умеет работать в режиме фиксированного числа дисков или подбора под нужный usable-объём
+- показывает scatter chart, summary и таблицу лучших вариантов
+- экспортирует результат в `CSV`
+- генерирует live-скрипт для DevTools, если нужно снять данные с DNS вручную
+
+## Быстрый старт
+
+1. Открой страницу:
+   [https://degorychev.github.io/hdd-value-map/](https://degorychev.github.io/hdd-value-map/)
+2. В блоке загрузки выбери один или несколько файлов `HAR` или вставь JSON вручную.
+3. Выбери схему ZFS и режим расчёта.
+4. Нажми `Построить анализ`.
+5. Изучи графики, summary и таблицу.
+6. При необходимости нажми `Скачать CSV`.
+
+## Демо-файл
+
+В репозитории есть готовый пример:
+[demo/demo-combined-sanitized.har](demo/demo-combined-sanitized.har)
+
+Это объединённый демонстрационный HAR, собранный из трёх реальных выгрузок и очищенный от приватных данных:
+
+- удалены request cookies и response cookies
+- удалены `Authorization`, `Cookie`, `Set-Cookie`, `x-csrf-token` и похожие заголовки
+- удалены лишние POST payloads
+- оставлены только записи, которые реально нужны для разбора каталога и цен
+
+Если хочешь быстро посмотреть инструмент в работе, просто загрузи этот файл в интерфейс.
+
+## Какие источники понимает инструмент
+
+- `HAR` из DNS с HTML каталога и `ajax-state/product-buy`
+- `HAR` из Regard с `api/site/goods/list`
+- live-export JSON, который можно собрать через встроенный генератор скрипта
+
+## Что лежит в репозитории
 
 - `index.html` — страница приложения
-- `styles.css` — стили, вынесенные из монолитного HTML
-- `app.js` — логика приложения, вынесенная из монолитного HTML
-- `.nojekyll` — отключает лишнюю обработку GitHub Pages
-- `snapshot/dns_zfs_tool_original.html` — сохранённый исходный монолит на случай отката
+- `styles.css` — стили
+- `app.js` — логика интерфейса и парсинга
+- `demo/demo-combined-sanitized.har` — безопасный демонстрационный пример
+- `snapshot/dns_zfs_tool_original.html` — сохранённый исходный монолит
 
-## Как запустить локально
+## Локальный запуск
 
-Достаточно открыть `index.html` в браузере.
+Можно просто открыть `index.html` в браузере.
 
-Если браузер будет строже относиться к локальным файлам, можно поднять простой статический сервер из этой папки:
+Если удобнее поднять локальный сервер:
 
 ```powershell
 python -m http.server 8000
 ```
 
-После этого открыть `http://localhost:8000`.
+Потом открыть `http://localhost:8000`.
 
-## Как опубликовать в GitHub Pages
+## Примечания
 
-### Вариант через веб-интерфейс GitHub
-
-1. Создай новый репозиторий на GitHub.
-2. Если у тебя тариф `GitHub Free`, сделай репозиторий публичным: для GitHub Pages на Free это важно.
-3. Залей в репозиторий содержимое этой папки `github-pages-site`, именно содержимое, а не саму внешнюю папку.
-4. На GitHub открой `Settings` -> `Pages`.
-5. В блоке `Build and deployment` выбери:
-   `Source` -> `Deploy from a branch`
-6. Выбери ветку `main` и папку `/(root)`.
-7. Нажми `Save`.
-8. Подожди несколько минут и открой ссылку вида:
-   `https://<username>.github.io/<repo>/`
-
-### Вариант через git из терминала
-
-```powershell
-cd "C:\Users\deneg\OneDrive\Документы\codex\dns\github-pages-site"
-git init
-git branch -M main
-git add .
-git commit -m "Initial GitHub Pages version"
-git remote add origin https://github.com/<username>/<repo>.git
-git push -u origin main
-```
-
-Потом включи GitHub Pages в `Settings` -> `Pages` так же, как описано выше.
-
-## Что важно помнить
-
-- GitHub Pages публикует обычные статические файлы, так что этот инструмент подходит хорошо.
-- В репозиторий лучше не класть большие HAR-файлы без необходимости.
-- Если сайт не обновился сразу, GitHub пишет, что публикация может занять до 10 минут.
-- Если когда-нибудь добавишь генератор или сборщик, текущую простую схему всё равно можно сохранить, публикуя уже готовые статические файлы.
-
-## Полезные ссылки
-
-- [Creating a GitHub Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)
-- [Configuring a publishing source for your GitHub Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
-- [Securing your GitHub Pages site with HTTPS](https://docs.github.com/en/pages/getting-started-with-github-pages/securing-your-github-pages-site-with-https)
+- Инструмент работает полностью на стороне клиента.
+- Оригинальные большие HAR-файлы в публичный репозиторий лучше не класть без санитизации.
+- Инструкция по публикации в GitHub Pages вынесена в [HOSTING.md](HOSTING.md).
