@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Статический инструмент для анализа HDD-предложений и подбора конфигураций ZFS по данным HAR и JSON.">
+  <title>HDD + ZFS Analyzer</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="panel hero-main">
+        <h1>HDD value map for ZFS</h1>
+        <p class="lede">
+          Открываешь эту страницу в браузере, подгружаешь HAR-экспорты DNS и Regard,
+          выбираешь схему ZFS и количество дисков, а дальше получаешь графики, таблицу и цену за полезный терабайт.
+        </p>
+        <div class="chip-row">
+          <div class="chip">Работает локально, без сервера</div>
+          <div class="chip">Поддержка `mirror`, `raidz1`, `raidz2`, `raidz3`, `stripe`</div>
+          <div class="chip">Можно объединять несколько HAR и магазинов</div>
+        </div>
+      </div>
+
+      <div class="panel hero-side">
+        <div class="note">
+          Plain HTML-страница не может сама ходить на `dns-shop.ru` с подставленными cookies: мешают CORS и антибот.
+          Поэтому основной режим здесь через HAR-файлы, а для live-сбора ниже есть генератор скрипта для DevTools на самой странице DNS.
+        </div>
+        <div class="note">
+          Для полностью честной выборки желательно экспортировать все страницы каталога.
+          `www.dns-shop.ru-pages.har` выглядит как полный проход по страницам DNS, а `www.regard.ru.har`
+          уже содержит API-список Regard с пагинацией.
+        </div>
+      </div>
+    </section>
+
+    <section class="layout">
+      <aside class="panel controls">
+        <div>
+          <h2 class="section-title">1. Источник данных</h2>
+          <div class="stack">
+            <div class="filebox">
+              <label>
+                HAR или JSON live-экспорт
+                <input id="fileInput" type="file" multiple accept=".har,.json,application/json">
+              </label>
+            </div>
+            <label>
+              Или вставь JSON live-экспорта
+              <textarea id="pasteInput" placeholder='{"pages":[...]} или JSON из HAR'></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <h2 class="section-title">2. Параметры массива</h2>
+          <div class="stack">
+            <label>
+              Уровень ZFS
+              <select id="zfsLevel">
+                <option value="raidz1">raidz1</option>
+                <option value="raidz2">raidz2</option>
+                <option value="raidz3">raidz3</option>
+                <option value="mirror">mirror</option>
+                <option value="stripe">stripe</option>
+              </select>
+            </label>
+            <label>
+              Режим расчёта
+              <select id="calcMode">
+                <option value="disk_count">по количеству дисков</option>
+                <option value="target_usable">подобрать до нужного объёма</option>
+              </select>
+            </label>
+            <label id="diskCountGroup">
+              Количество дисков
+              <input id="diskCount" type="number" min="2" step="1" value="3">
+              <span class="input-hint">Используй этот режим, если заранее знаешь, сколько одинаковых дисков хочешь в массиве.</span>
+            </label>
+            <label id="targetUsableGroup" class="input-disabled">
+              Необходимый объём (ТБ)
+              <input id="targetUsableTb" type="number" min="0" step="1" value="40">
+              <span class="input-hint">В этом режиме программа сама подбирает, сколько дисков каждой модели нужно для достижения цели.</span>
+            </label>
+            <label>
+              Форм-фактор
+              <select id="formFactor">
+                <option value="3.5">только 3.5"</option>
+                <option value="2.5">только 2.5"</option>
+                <option value="all">все</option>
+              </select>
+            </label>
+            <label>
+              Класс диска
+              <select id="classFilter">
+                <option value="all">все классы</option>
+                <option value="nas_or_raid">NAS / RAID</option>
+                <option value="enterprise">Enterprise / дата-центр</option>
+                <option value="surveillance">Видеонаблюдение</option>
+                <option value="desktop">Обычный настольный</option>
+                <option value="other">Не определено</option>
+              </select>
+            </label>
+            <label class="checkbox">
+              <input id="candidatesOnly" type="checkbox" checked>
+              <span>Показывать в топе только более уместные кандидаты под ZFS</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <h2 class="section-title">3. Действия</h2>
+          <div class="actions">
+            <button id="analyzeBtn" class="primary">Построить анализ</button>
+            <button id="downloadBtn" class="secondary" disabled>Скачать CSV</button>
+            <button id="buildScriptBtn" class="ghost">Сгенерировать live-скрипт</button>
+            <button id="copyScriptBtn" class="ghost">Копировать скрипт</button>
+          </div>
+          <div id="status" class="status" style="margin-top:10px;"></div>
+        </div>
+
+        <div>
+          <h2 class="section-title">4. Live-сбор с DNS</h2>
+          <div class="stack">
+            <label>
+              URL каталога на DNS
+              <input id="categoryUrl" type="text" value="https://www.dns-shop.ru/catalog/17a8914916404e77/zestkie-diski-35/?order=price-asc&stock=now-today-tomorrow-later">
+            </label>
+            <textarea id="scriptOutput" placeholder="Здесь появится JS-скрипт для запуска в DevTools на странице DNS."></textarea>
+            <div class="muted-box">
+              Сценарий такой: открываешь DNS, заходишь в нужный каталог, вставляешь сгенерированный код в DevTools Console,
+              он собирает все страницы и скачивает JSON. Потом этот JSON можно загрузить сюда же.
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="results">
+        <section class="cards">
+          <div class="panel card">
+            <div class="eyebrow">Лучший общий</div>
+            <div id="bestOverall" class="big-number">—</div>
+            <div id="bestOverallMeta" class="subtle">Загрузи HAR и выбери параметры.</div>
+          </div>
+          <div class="panel card">
+            <div class="eyebrow">Лучший ZFS-кандидат</div>
+            <div id="bestCandidate" class="big-number">—</div>
+            <div id="bestCandidateMeta" class="subtle">Будет рассчитан после анализа.</div>
+          </div>
+          <div class="panel card">
+            <div class="eyebrow">Моделей в выборке</div>
+            <div id="modelCount" class="big-number">0</div>
+            <div id="coverageMeta" class="subtle">Пока данных нет.</div>
+          </div>
+          <div class="panel card">
+            <div class="eyebrow">Конфигурация</div>
+            <div id="configView" class="big-number">raidz1 × 3</div>
+            <div id="configMeta" class="subtle">Цена считается за полезный TB.</div>
+          </div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Графики</h2>
+              <p>Слева разброс цен по ёмкости, справа топ моделей для выбранной схемы массива.</p>
+            </div>
+            <div class="small-actions">
+              <button id="openScatterModalBtn" class="ghost">Открыть график на весь экран</button>
+            </div>
+          </div>
+          <div class="chart-grid">
+            <div class="chart-box"><div id="scatterChart"></div></div>
+            <div class="chart-box"><div id="barChart"></div></div>
+          </div>
+        </section>
+
+        <section class="panel summary-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Короткие выводы</h2>
+              <p>Тут собираются самые полезные наблюдения по объёмам, типам дисков и полноте HAR.</p>
+            </div>
+          </div>
+          <div id="summaryList" class="summary-list"></div>
+        </section>
+
+        <section class="panel table-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Топ моделей</h2>
+              <p>Таблица отсортирована по цене за полезный терабайт.</p>
+            </div>
+            <div class="small-actions">
+              <button id="showAllBtn" class="ghost">Показать 30 строк</button>
+            </div>
+          </div>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Магазин</th>
+                  <th>Модель</th>
+                  <th>Бренд</th>
+                  <th>Объём</th>
+                  <th>Цена</th>
+                  <th>Полезный объём</th>
+                  <th>Цена / полезный TB</th>
+                  <th>Класс</th>
+                </tr>
+              </thead>
+              <tbody id="resultsTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <div id="chartModal" class="chart-modal" aria-hidden="true">
+    <div class="chart-modal-panel">
+      <div class="chart-modal-head">
+        <div>
+          <h2>Scatter-график цены за полезный TB</h2>
+          <p class="subtle">Колесо мыши масштабирует, перетаскивание двигает область просмотра.</p>
+        </div>
+        <div class="small-actions">
+          <button id="resetScatterZoomBtn" class="ghost">Сбросить вид</button>
+          <button id="closeScatterModalBtn" class="ghost">Закрыть</button>
+        </div>
+      </div>
+      <div class="chart-modal-body">
+        <div id="scatterModalStage" class="chart-stage"></div>
+      </div>
+      <div class="chart-modal-foot">
+        <span>Подсказка: лучше зумить сначала по нужной ёмкости, потом панорамировать по облаку точек.</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="scatterTooltip" class="scatter-tooltip"></div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
