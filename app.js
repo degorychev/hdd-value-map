@@ -71,7 +71,20 @@
 
     function parseFormFactor(text) {
       const match = text.match(/([23]\.5)\s*["”]/i);
-      return match ? match[1] : "";
+      if (match) return match[1];
+      if (/sff/i.test(text)) return "2.5";
+      if (/lff/i.test(text)) return "3.5";
+      return "";
+    }
+
+    function isDnsCatalogListingUrl(url) {
+      return url.startsWith("https://www.dns-shop.ru/catalog/") &&
+        !url.includes("/catalog/category/") &&
+        !url.includes("/catalog/compare/") &&
+        !url.includes("category-filters-new") &&
+        !url.includes("log-filters") &&
+        !url.includes("smart-consult-init") &&
+        !url.includes("get-virtual-categories-list");
     }
 
     function classifyWorkload(row) {
@@ -264,7 +277,7 @@
           }
         }
 
-        if (url.includes("/catalog/17a8914916404e77/zestkie-diski-35/") && !url.includes("category-filters-new") && !url.includes("log-filters")) {
+        if (isDnsCatalogListingUrl(url)) {
           catalogUrls.add(url);
           let fragment = text;
           try {
@@ -275,7 +288,10 @@
           const countMatch = fragment.match(/(\d+)\s+товар/i);
           if (countMatch) countMarkers.push(Number(countMatch[1]));
 
-          for (const row of parseProductBlocks(fragment)) {
+          const productBlocks = parseProductBlocks(fragment);
+          if (!productBlocks.length) continue;
+
+          for (const row of productBlocks) {
             if (!row.productUuid) continue;
             productRows.set(row.productUuid, { ...(productRows.get(row.productUuid) || {}), ...row });
           }
